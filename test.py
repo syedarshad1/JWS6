@@ -89,7 +89,7 @@ def check_jvm_status_ssh(user, sdm_host, sdm_port, server_ip, http_port, path):
 
 def refresh_status_for_groups(user, groups_to_refresh):
     """Refresh status for specific groups only"""
-    if not user:
+    if not user or not groups_to_refresh:
         return
     
     for inst in INSTANCES:
@@ -132,17 +132,25 @@ class Handler(BaseHTTPRequestHandler):
             self.json_response(result)
         elif self.path == "/api/history":
             self.json_response([])
-        elif self.path == "/api/refresh":
+        elif self.path.startswith("/api/refresh"):
             import urllib.parse
-            parsed = urllib.parse.urlparse(self.path)
-            params = urllib.parse.parse_qs(parsed.query)
-            user = params.get('user', [''])[0]
-            groups = params.get('groups', [])
-            if groups:
-                groups = groups[0].split(',')
-            if user:
-                threading.Thread(target=refresh_status_for_groups, args=(user, groups), daemon=True).start()
-            self.json_response({"status": "refreshing"})
+            try:
+                parsed = urllib.parse.urlparse(self.path)
+                params = urllib.parse.parse_qs(parsed.query)
+                user = params.get('user', [''])[0] if params.get('user') else ''
+                groups_param = params.get('groups', [''])[0] if params.get('groups') else ''
+                
+                groups_to_refresh = []
+                if groups_param:
+                    groups_to_refresh = [g.strip() for g in groups_param.split(',') if g.strip()]
+                
+                if user and groups_to_refresh:
+                    threading.Thread(target=refresh_status_for_groups, args=(user, groups_to_refresh), daemon=True).start()
+                    self.json_response({"status": "refreshing", "groups": groups_to_refresh})
+                else:
+                    self.json_error("Missing user or groups", 400)
+            except Exception as e:
+                self.json_error(f"Error: {str(e)}", 500)
         else:
             self.send_error(404)
 
@@ -252,6 +260,7 @@ class Handler(BaseHTTPRequestHandler):
         .btn-secondary {{ background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); }}
         .btn-secondary:hover {{ background: rgba(255,255,255,0.3); }}
         .status-message {{ padding: 6px 10px; border-radius: 4px; font-size: 11px; background: rgba(16,185,129,0.2); color: #059669; }}
+        .status-message.error {{ background: rgba(239,68,68,0.2); color: #b91c1c; }}
         .group-toggles {{ background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 12px; margin-bottom: 20px; }}
         .group-toggles h3 {{ font-size: 12px; font-weight: 600; margin-bottom: 10px; }}
         .group-toggle-item {{ display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; margin-bottom: 6px; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; }}
@@ -349,8 +358,13 @@ class Handler(BaseHTTPRequestHandler):
         let pendingAction = null;
         let enabledGroups = new Set(GROUPS);
 
-        function setStatus(msg) {{
-            document.getElementById('status').textContent = msg;
+        function setStatus(msg, isError = false) {{
+            const el = document.getElementById('status');
+            el.textContent = msg;
+            if (isError) {{
+                el.classList.add('error');
+                setTimeout(() => el.classList.remove('error'), 3000);
+            }}
         }}
 
         function initGroups() {{
@@ -465,7 +479,7 @@ class Handler(BaseHTTPRequestHandler):
                 setStatus('Done');
                 setTimeout(() => refreshOne(pendingAction.group, pendingAction.server, pendingAction.name), 2000);
             }}).catch(e => {{
-                setStatus('Error');
+                setStatus('Error: ' + e.message, true);
             }});
         }}
 
@@ -485,28 +499,49 @@ class Handler(BaseHTTPRequestHandler):
                 render();
                 setStatus('Ready');
             }}).catch(e => {{
-                setStatus('Error');
+                setStatus('Error: ' + e.message, true);
             }});
         }}
 
         function refreshAll() {{
             const user = document.getElementById('username').value.trim();
-            if (!user) {{ alert('Enter username'); return; }}
+            if (!user) {{ 
+                setStatus('Enter username first', true);
+                return; 
+            }}
+            
+            if (enabledGroups.size === 0) {{
+                setStatus('Select at least one group', true);
+                return;
+            }}
             
             const groupList = Array.from(enabledGroups).join(',');
             setStatus('Refreshing selected groups...');
-            fetch('/api/refresh?user=' + encodeURIComponent(user) + '&groups=' + encodeURIComponent(groupList)).then(r => r.json()).then(data => {{
-                setTimeout(() => {{
-                    fetch('/api/instances').then(r => r.json()).then(data => {{
-                        INSTANCES.length = 0;
-                        data.forEach(i => INSTANCES.push(i));
-                        render();
-                        setStatus('Ready');
-                    }});
-                }}, 2000);
-            }}).catch(e => {{
-                setStatus('Error');
-            }});
+            fetch('/api/refresh?user=' + encodeURIComponent(user) + '&groups=' + encodeURIComponent(groupList))
+                .then(r => {{
+                    if (!r.ok) {{
+                        return r.json().then(data => {{
+                            throw new Error(data.error || 'Server error');
+                        }});
+                    }}
+                    return r.json();
+                }})
+                .then(data => {{
+                    setTimeout(() => {{
+                        fetch('/api/instances')
+                            .then(r => r.json())
+                            .then(data => {{
+                                INSTANCES.length = 0;
+                                data.forEach(i => INSTANCES.push(i));
+                                render();
+                                setStatus('Ready');
+                            }})
+                            .catch(e => setStatus('Error loading instances: ' + e.message, true));
+                    }}, 2000);
+                }})
+                .catch(e => {{
+                    setStatus('Error: ' + e.message, true);
+                }});
         }}
 
         function switchTab(tab) {{
@@ -533,7 +568,7 @@ if __name__ == "__main__":
         print("JWS6 Console")
         print("=" * 70)
         print(f"✓ Starting on http://{host}:{port}")
-        print("✓ Refresh respects group selection")
+        print("✓ Better error handling and logging")
         print("Press Ctrl+C to stop")
         print("=" * 70)
         
