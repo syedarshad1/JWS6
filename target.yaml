@@ -28,7 +28,6 @@ apps:
         start_cmd: "echo TODO_START_SHARED_1"
         stop_cmd: "echo TODO_STOP_SHARED_1"
         restart_cmd: "echo TODO_RESTART_SHARED_1"
-
       - server: "pdc8rctoihap11"
         name: "IH_IC_Shared_2_Rdy_pdc8rctoihap11"
         http_port: 12003
@@ -36,7 +35,6 @@ apps:
         start_cmd: "echo TODO_START_SHARED_2"
         stop_cmd: "echo TODO_STOP_SHARED_2"
         restart_cmd: "echo TODO_RESTART_SHARED_2"
-
       - server: "pdc8rctoihap12"
         name: "IH_IC_Shared_1_Rdy_pdc8rctoihap12"
         http_port: 12001
@@ -44,7 +42,6 @@ apps:
         start_cmd: "echo TODO_START_SHARED_1"
         stop_cmd: "echo TODO_STOP_SHARED_1"
         restart_cmd: "echo TODO_RESTART_SHARED_1"
-
       - server: "pdc8rctoihap12"
         name: "IH_IC_Shared_2_Rdy_pdc8rctoihap12"
         http_port: 12003
@@ -52,7 +49,6 @@ apps:
         start_cmd: "echo TODO_START_SHARED_2"
         stop_cmd: "echo TODO_STOP_SHARED_2"
         restart_cmd: "echo TODO_RESTART_SHARED_2"
-
       - server: "pdc8rctoihap13"
         name: "IH_IC_Shared_1_Rdy_pdc8rctoihap13"
         http_port: 12001
@@ -60,7 +56,6 @@ apps:
         start_cmd: "echo TODO_START_SHARED_1"
         stop_cmd: "echo TODO_STOP_SHARED_1"
         restart_cmd: "echo TODO_RESTART_SHARED_1"
-
       - server: "pdc8rctoihap13"
         name: "IH_IC_Shared_2_Rdy_pdc8rctoihap13"
         http_port: 12003
@@ -75,7 +70,6 @@ apps:
         name: "IH_IC_DSSOA_1_Rdy_pdc8rctoihap11"
         http_port: 12021
         path: "/"
-        # Example using your wrapper script (adjust JVM number if needed)
         start_cmd: "/home/ihtomcat/IH_IC_DSSOA_Wrapper_Script.sh start 1"
         stop_cmd: "/home/ihtomcat/IH_IC_DSSOA_Wrapper_Script.sh stop 1"
         restart_cmd: "/home/ihtomcat/IH_IC_DSSOA_Wrapper_Script.sh stop 1; sleep 2; /home/ihtomcat/IH_IC_DSSOA_Wrapper_Script.sh start 1"
