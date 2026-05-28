@@ -1,0 +1,81 @@
+settings:
+  http_ok_codes: [200, 302, 401, 403]
+  curl_timeout_seconds: 1
+  ssh_connect_timeout_seconds: 8
+  history_file: "history.jsonl"
+
+servers:
+  pdc8rctoihap11:
+    sdm_host: "127.0.0.5"
+    sdm_port: 22087
+    server_ip: "100.72.160.193"
+  pdc8rctoihap12:
+    sdm_host: "127.0.0.5"
+    sdm_port: 22096
+    server_ip: "100.72.160.182"
+  pdc8rctoihap13:
+    sdm_host: "127.0.0.5"
+    sdm_port: 22105
+    server_ip: "100.72.160.179"
+
+apps:
+  - group: "IH_IC_Shared"
+    instances:
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_Shared_1_Rdy_pdc8rctoihap11"
+        http_port: 12001
+        path: "/"
+        start_cmd: "echo TODO_START_SHARED_1"
+        stop_cmd: "echo TODO_STOP_SHARED_1"
+        restart_cmd: "echo TODO_RESTART_SHARED_1"
+
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_Shared_2_Rdy_pdc8rctoihap11"
+        http_port: 12003
+        path: "/"
+        start_cmd: "echo TODO_START_SHARED_2"
+        stop_cmd: "echo TODO_STOP_SHARED_2"
+        restart_cmd: "echo TODO_RESTART_SHARED_2"
+
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_Shared_1_Rdy_pdc8rctoihap12"
+        http_port: 12001
+        path: "/"
+        start_cmd: "echo TODO_START_SHARED_1"
+        stop_cmd: "echo TODO_STOP_SHARED_1"
+        restart_cmd: "echo TODO_RESTART_SHARED_1"
+
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_Shared_2_Rdy_pdc8rctoihap12"
+        http_port: 12003
+        path: "/"
+        start_cmd: "echo TODO_START_SHARED_2"
+        stop_cmd: "echo TODO_STOP_SHARED_2"
+        restart_cmd: "echo TODO_RESTART_SHARED_2"
+
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_Shared_1_Rdy_pdc8rctoihap13"
+        http_port: 12001
+        path: "/"
+        start_cmd: "echo TODO_START_SHARED_1"
+        stop_cmd: "echo TODO_STOP_SHARED_1"
+        restart_cmd: "echo TODO_RESTART_SHARED_1"
+
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_Shared_2_Rdy_pdc8rctoihap13"
+        http_port: 12003
+        path: "/"
+        start_cmd: "echo TODO_START_SHARED_2"
+        stop_cmd: "echo TODO_STOP_SHARED_2"
+        restart_cmd: "echo TODO_RESTART_SHARED_2"
+
+  - group: "IH_IC_DSSOA"
+    instances:
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_DSSOA_1_Rdy_pdc8rctoihap11"
+        http_port: 12021
+        path: "/"
+        # Example using your wrapper script (adjust JVM number if needed)
+        start_cmd: "/home/ihtomcat/IH_IC_DSSOA_Wrapper_Script.sh start 1"
+        stop_cmd: "/home/ihtomcat/IH_IC_DSSOA_Wrapper_Script.sh stop 1"
+        restart_cmd: "/home/ihtomcat/IH_IC_DSSOA_Wrapper_Script.sh stop 1; sleep 2; /home/ihtomcat/IH_IC_DSSOA_Wrapper_Script.sh start 1"
