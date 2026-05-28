@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys, time, json, threading, subprocess, webbrowser, getpass
+import os, sys, time, json, threading, subprocess, webbrowser, getpass, shlex
 from datetime import datetime
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -26,11 +26,13 @@ SETTINGS = CONFIG.get('settings', {})
 
 GROUPS = set()
 INSTANCES = []
+STATUS = {}  # Store JVM status
 
 for app in APPS:
     group = app.get('group', 'Unknown')
     GROUPS.add(group)
     for inst in app.get('instances', []):
+        inst_key = f"{group}|{inst.get('server')}|{inst.get('name')}"
         INSTANCES.append({
             'group': group,
             'server': inst.get('server'),
@@ -42,6 +44,7 @@ for app in APPS:
             'restart_cmd': inst.get('restart_cmd', ''),
             'status': {'state': 'UNKNOWN', 'color': 'unknown', 'icon': '❓'}
         })
+        STATUS[inst_key] = {'state': 'UNKNOWN', 'color': 'unknown', 'icon': '❓'}
 
 GROUPS = sorted(list(GROUPS))
 
@@ -53,12 +56,54 @@ def get_user():
 
 CURRENT_USER = get_user()
 
-HTML_FILE = os.path.join(APP_DIR, "console.html")
+def check_jvm_status(host, port, path, timeout=2):
+    """Check JVM HTTP status"""
+    import urllib.request
+    url = f"http://{host}:{port}{path}"
+    try:
+        response = urllib.request.urlopen(url, timeout=timeout)
+        code = response.code
+        if code in [200, 302, 401, 403]:
+            return {'state': 'UP', 'color': 'up', 'icon': '✅', 'code': code}
+        else:
+            return {'state': 'WARN', 'color': 'warn', 'icon': '⚠️', 'code': code}
+    except urllib.error.HTTPError as e:
+        code = e.code
+        if code in [200, 302, 401, 403]:
+            return {'state': 'UP', 'color': 'up', 'icon': '✅', 'code': code}
+        elif 500 <= code <= 599:
+            return {'state': 'UNHEALTHY', 'color': 'warn', 'icon': '⚠️', 'code': code}
+        elif 400 <= code <= 499:
+            return {'state': 'WARN', 'color': 'warn', 'icon': '⚠️', 'code': code}
+        else:
+            return {'state': 'UNKNOWN', 'color': 'unknown', 'icon': '❓', 'code': code}
+    except Exception as e:
+        return {'state': 'DOWN', 'color': 'down', 'icon': '❌', 'code': 0}
+
+def refresh_all_status():
+    """Refresh status for all instances"""
+    for inst in INSTANCES:
+        inst_key = f"{inst['group']}|{inst['server']}|{inst['name']}"
+        status = check_jvm_status('127.0.0.1', inst['http_port'], inst['path'])
+        STATUS[inst_key] = status
+        inst['status'] = status
+
+def ssh_run(user, sdm_host, sdm_port, cmd):
+    """Run command via SSH"""
+    try:
+        full_cmd = f"ssh -p {sdm_port} -o BatchMode=yes -o StrictHostKeyChecking=accept-new {user}@{sdm_host} {shlex.quote(cmd)}"
+        result = subprocess.run(full_cmd, shell=True, capture_output=True, text=True, timeout=300)
+        return result.returncode == 0, result.stdout + result.stderr
+    except Exception as e:
+        return False, str(e)
+
+# Initial status check
+print("Checking JVM statuses...")
+threading.Thread(target=refresh_all_status, daemon=True).start()
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/" or self.path == "/index.html":
-            # Generate HTML on each request
             html = self.generate_html()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -67,9 +112,20 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/config":
             self.json_response({"groups": GROUPS, "servers": SERVERS})
         elif self.path == "/api/instances":
-            self.json_response(INSTANCES)
+            # Return instances with current status
+            result = []
+            for inst in INSTANCES:
+                inst_copy = inst.copy()
+                inst_key = f"{inst['group']}|{inst['server']}|{inst['name']}"
+                inst_copy['status'] = STATUS.get(inst_key, inst['status'])
+                result.append(inst_copy)
+            self.json_response(result)
         elif self.path == "/api/history":
             self.json_response([])
+        elif self.path == "/api/refresh":
+            # Refresh all statuses
+            threading.Thread(target=refresh_all_status, daemon=True).start()
+            self.json_response({"status": "refreshing"})
         else:
             self.send_error(404)
 
@@ -83,7 +139,53 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/action":
-            self.json_response({"status": "ok"})
+            user = data.get('user', '')
+            action = data.get('action', '').upper()
+            group = data.get('group', '')
+            server = data.get('server', '')
+            name = data.get('name', '')
+            
+            # Find instance
+            inst = None
+            for i in INSTANCES:
+                if i['group'] == group and i['server'] == server and i['name'] == name:
+                    inst = i
+                    break
+            
+            if not inst:
+                self.json_error("Instance not found", 404)
+                return
+            
+            # Get command
+            if action == 'START':
+                cmd = inst['start_cmd']
+            elif action == 'STOP':
+                cmd = inst['stop_cmd']
+            elif action == 'RESTART':
+                cmd = inst['restart_cmd']
+            else:
+                self.json_error("Invalid action", 400)
+                return
+            
+            if not cmd:
+                self.json_error(f"{action} not configured", 400)
+                return
+            
+            # Execute in background
+            def execute():
+                srv = SERVERS.get(server, {})
+                sdm_host = srv.get('sdm_host', '127.0.0.5')
+                sdm_port = srv.get('sdm_port', 22087)
+                success, output = ssh_run(user, sdm_host, sdm_port, cmd)
+                # Refresh status after action
+                time.sleep(2)
+                status = check_jvm_status('127.0.0.1', inst['http_port'], inst['path'])
+                inst_key = f"{group}|{server}|{name}"
+                STATUS[inst_key] = status
+                inst['status'] = status
+            
+            threading.Thread(target=execute, daemon=True).start()
+            self.json_response({"status": "executing"})
         else:
             self.send_error(404)
 
@@ -105,7 +207,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def generate_html(self):
         groups_json = json.dumps(GROUPS)
-        instances_json = json.dumps(INSTANCES)
+        instances_json = json.dumps([{
+            'group': i['group'],
+            'server': i['server'],
+            'name': i['name'],
+            'http_port': i['http_port'],
+            'path': i['path'],
+            'start_cmd': i['start_cmd'],
+            'stop_cmd': i['stop_cmd'],
+            'restart_cmd': i['restart_cmd'],
+            'status': STATUS.get(f"{i['group']}|{i['server']}|{i['name']}", i['status'])
+        } for i in INSTANCES])
         servers_json = json.dumps(SERVERS)
         user_val = CURRENT_USER
 
@@ -145,12 +257,13 @@ class Handler(BaseHTTPRequestHandler):
         .server-block:first-child {{ border-top: none; }}
         .server-name {{ font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; margin-bottom: 8px; }}
         .server-meta {{ font-size: 10px; color: #9ca3af; margin-left: 20px; margin-bottom: 8px; }}
-        .instance-row {{ display: grid; grid-template-columns: auto 1fr auto auto auto auto auto; gap: 10px; align-items: center; padding: 10px; background: #fafafa; border-radius: 6px; margin-bottom: 6px; border-left: 2px solid #e5e7eb; }}
+        .instance-row {{ display: grid; grid-template-columns: auto 1fr auto auto auto auto auto;gap: 10px; align-items: center; padding: 10px; background: #fafafa; border-radius: 6px; margin-bottom: 6px; border-left: 2px solid #e5e7eb; }}
         .instance-icon {{ font-size: 16px; width: 20px; text-align: center; }}
         .instance-name {{ font-size: 12px; font-weight: 500; }}
         .status-badge {{ display: inline-flex; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; min-width: 70px; justify-content: center; }}
         .status-up {{ background: #d1fae5; color: #047857; }}
         .status-down {{ background: #fee2e2; color: #991b1b; }}
+        .status-warn {{ background: #fef3c7; color: #b45309; }}
         .status-unknown {{ background: #f3f4f6; color: #6b7280; }}
         .instance-buttons {{ display: flex; gap: 4px; }}
         .btn-small {{ padding: 4px 8px; font-size: 11px; border-radius: 3px; border: 1px solid #d1d5db; background: white; color: #374151; cursor: pointer; }}
@@ -180,7 +293,7 @@ class Handler(BaseHTTPRequestHandler):
             <div class="header-info">{len(INSTANCES)} instances | {len(GROUPS)} groups</div>
             <div class="controls">
                 <input type="text" id="username" class="username-input" placeholder="SSH Username" value="{user_val}" autocomplete="off">
-                <button class="btn-secondary" onclick="refresh()">🔄 Refresh All</button>
+                <button class="btn-secondary" onclick="refreshAll()">🔄 Refresh All</button>
                 <div class="status-message" id="status">Ready</div>
             </div>
         </header>
@@ -205,7 +318,7 @@ class Handler(BaseHTTPRequestHandler):
         </div>
 
         <div id="history" class="tab-content">
-            <div class="history-view"><div id="history-content"></div></div>
+            <div class="history-view"><div id="history-content">No history</div></div>
         </div>
     </div>
 
@@ -342,6 +455,7 @@ class Handler(BaseHTTPRequestHandler):
                 body: JSON.stringify(pendingAction)
             }}).then(r => r.json()).then(data => {{
                 setStatus('Done');
+                setTimeout(() => refreshOne(pendingAction.group, pendingAction.server, pendingAction.name), 2000);
             }}).catch(e => {{
                 setStatus('Error');
             }});
@@ -353,13 +467,31 @@ class Handler(BaseHTTPRequestHandler):
         }}
 
         function refreshOne(group, server, name) {{
-            setStatus('Refreshing...');
-            setTimeout(() => setStatus('Ready'), 1000);
+            setStatus('Refreshing ' + name + '...');
+            fetch('/api/instances').then(r => r.json()).then(data => {{
+                INSTANCES.length = 0;
+                data.forEach(i => INSTANCES.push(i));
+                render();
+                setStatus('Ready');
+            }}).catch(e => {{
+                setStatus('Error');
+            }});
         }}
 
-        function refresh() {{
+        function refreshAll() {{
             setStatus('Refreshing all...');
-            setTimeout(() => setStatus('Ready'), 1000);
+            fetch('/api/refresh').then(r => r.json()).then(data => {{
+                setTimeout(() => {{
+                    fetch('/api/instances').then(r => r.json()).then(data => {{
+                        INSTANCES.length = 0;
+                        data.forEach(i => INSTANCES.push(i));
+                        render();
+                        setStatus('Ready');
+                    }});
+                }}, 1000);
+            }}).catch(e => {{
+                setStatus('Error');
+            }});
         }}
 
         function switchTab(tab) {{
@@ -386,6 +518,7 @@ if __name__ == "__main__":
         print("JWS6 Console")
         print("=" * 70)
         print(f"✓ Starting on http://{host}:{port}")
+        print("✓ Checking JVM statuses...")
         print("Press Ctrl+C to stop")
         print("=" * 70)
         
