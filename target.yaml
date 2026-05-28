@@ -1,75 +1,74 @@
-settings:
-  http_ok_codes: [200, 302, 401, 403]
-  curl_timeout_seconds: 1
-  ssh_connect_timeout_seconds: 8
-  history_file: "history.jsonl"
+@echo off
+REM JWS6 Console - Double-Click to Run
+REM Just run this file like you would run a JAR file
 
-servers:
-  pdc8rctoihap11:
-    sdm_host: "127.0.0.5"
-    sdm_port: 22087
-    server_ip: "100.72.160.193"
-  pdc8rctoihap12:
-    sdm_host: "127.0.0.5"
-    sdm_port: 22096
-    server_ip: "100.72.160.182"
-  pdc8rctoihap13:
-    sdm_host: "127.0.0.5"
-    sdm_port: 22105
-    server_ip: "100.72.160.179"
+setlocal enabledelayedexpansion
 
-apps:
-  - group: "IH_IC_Shared"
-    instances:
-      - server: "pdc8rctoihap11"
-        name: "IH_IC_Shared_1_Rdy_pdc8rctoihap11"
-        http_port: 12001
-        path: "/"
-        start_cmd: "echo TODO_START_SHARED_1"
-        stop_cmd: "echo TODO_STOP_SHARED_1"
-        restart_cmd: "echo TODO_RESTART_SHARED_1"
-      - server: "pdc8rctoihap11"
-        name: "IH_IC_Shared_2_Rdy_pdc8rctoihap11"
-        http_port: 12003
-        path: "/"
-        start_cmd: "echo TODO_START_SHARED_2"
-        stop_cmd: "echo TODO_STOP_SHARED_2"
-        restart_cmd: "echo TODO_RESTART_SHARED_2"
-      - server: "pdc8rctoihap12"
-        name: "IH_IC_Shared_1_Rdy_pdc8rctoihap12"
-        http_port: 12001
-        path: "/"
-        start_cmd: "echo TODO_START_SHARED_1"
-        stop_cmd: "echo TODO_STOP_SHARED_1"
-        restart_cmd: "echo TODO_RESTART_SHARED_1"
-      - server: "pdc8rctoihap12"
-        name: "IH_IC_Shared_2_Rdy_pdc8rctoihap12"
-        http_port: 12003
-        path: "/"
-        start_cmd: "echo TODO_START_SHARED_2"
-        stop_cmd: "echo TODO_STOP_SHARED_2"
-        restart_cmd: "echo TODO_RESTART_SHARED_2"
-      - server: "pdc8rctoihap13"
-        name: "IH_IC_Shared_1_Rdy_pdc8rctoihap13"
-        http_port: 12001
-        path: "/"
-        start_cmd: "echo TODO_START_SHARED_1"
-        stop_cmd: "echo TODO_STOP_SHARED_1"
-        restart_cmd: "echo TODO_RESTART_SHARED_1"
-      - server: "pdc8rctoihap13"
-        name: "IH_IC_Shared_2_Rdy_pdc8rctoihap13"
-        http_port: 12003
-        path: "/"
-        start_cmd: "echo TODO_START_SHARED_2"
-        stop_cmd: "echo TODO_STOP_SHARED_2"
-        restart_cmd: "echo TODO_RESTART_SHARED_2"
+REM Colors (for Windows 10+)
+for /F %%A in ('echo prompt $H ^| cmd') do set "BS=%%A"
 
-  - group: "IH_IC_DSSOA"
-    instances:
-      - server: "pdc8rctoihap11"
-        name: "IH_IC_DSSOA_1_Rdy_pdc8rctoihap11"
-        http_port: 12021
-        path: "/"
-        start_cmd: "/home/ihtomcat/IH_IC_DSSOA_Wrapper_Script.sh start 1"
-        stop_cmd: "/home/ihtomcat/IH_IC_DSSOA_Wrapper_Script.sh stop 1"
-        restart_cmd: "/home/ihtomcat/IH_IC_DSSOA_Wrapper_Script.sh stop 1; sleep 2; /home/ihtomcat/IH_IC_DSSOA_Wrapper_Script.sh start 1"
+cls
+echo.
+echo ============================================================
+echo                   JWS6 Console
+echo ============================================================
+echo.
+
+REM Check Python
+python --version >nul 2>&1
+if %errorlevel% neq 0 (
+    color 0C
+    echo ERROR: Python not found!
+    echo.
+    echo Install Python from: https://www.python.org
+    echo Make sure to check "Add Python to PATH"
+    echo.
+    pause
+    exit /b 1
+)
+
+REM Check PyYAML
+pip show PyYAML >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Installing PyYAML...
+    pip install PyYAML >nul 2>&1
+    if %errorlevel% neq 0 (
+        color 0C
+        echo ERROR: Could not install PyYAML
+        echo.
+        pause
+        exit /b 1
+    )
+)
+
+REM Check files
+if not exist "jws_console_web.py" (
+    color 0C
+    echo ERROR: jws_console_web.py not found
+    echo.
+    pause
+    exit /b 1
+)
+
+if not exist "targets.yaml" (
+    color 0C
+    echo ERROR: targets.yaml not found
+    echo.
+    pause
+    exit /b 1
+)
+
+echo ✓ All checks passed
+echo ✓ Starting JWS6 Console...
+echo.
+echo Browser will open automatically in a moment...
+echo.
+echo Press Ctrl+C to stop the console
+echo.
+echo ============================================================
+echo.
+
+REM Run the console
+python jws_console_web.py
+
+pause
