@@ -63,10 +63,7 @@ CURRENT_USER = get_user()
 def check_jvm_status_ssh(user, sdm_host, sdm_port, server_ip, http_port, path):
     """Check JVM status via SSH tunnel through StrongDM"""
     try:
-        # Build curl command to run on remote server
         curl_cmd = f"curl -s -o /dev/null -w '%{{http_code}}' --max-time 2 http://{server_ip}:{http_port}{path}"
-        
-        # SSH command to execute curl on remote
         ssh_cmd = f"ssh -p {sdm_port} -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new {user}@{sdm_host} {shlex.quote(curl_cmd)}"
         
         result = subprocess.run(ssh_cmd, shell=True, capture_output=True, text=True, timeout=15)
@@ -90,12 +87,16 @@ def check_jvm_status_ssh(user, sdm_host, sdm_port, server_ip, http_port, path):
     except Exception as e:
         return {'state': 'DOWN', 'color': 'down', 'icon': '❌', 'code': 0}
 
-def refresh_all_status(user):
-    """Refresh status for all instances via SSH"""
+def refresh_status_for_groups(user, groups_to_refresh):
+    """Refresh status for specific groups only"""
     if not user:
         return
     
     for inst in INSTANCES:
+        # Only refresh instances in enabled groups
+        if inst['group'] not in groups_to_refresh:
+            continue
+        
         inst_key = f"{inst['group']}|{inst['server']}|{inst['name']}"
         status = check_jvm_status_ssh(user, inst['sdm_host'], inst['sdm_port'], 
                                       inst['server_ip'], inst['http_port'], inst['path'])
@@ -136,8 +137,11 @@ class Handler(BaseHTTPRequestHandler):
             parsed = urllib.parse.urlparse(self.path)
             params = urllib.parse.parse_qs(parsed.query)
             user = params.get('user', [''])[0]
+            groups = params.get('groups', [])
+            if groups:
+                groups = groups[0].split(',')
             if user:
-                threading.Thread(target=refresh_all_status, args=(user,), daemon=True).start()
+                threading.Thread(target=refresh_status_for_groups, args=(user, groups), daemon=True).start()
             self.json_response({"status": "refreshing"})
         else:
             self.send_error(404)
@@ -489,8 +493,9 @@ class Handler(BaseHTTPRequestHandler):
             const user = document.getElementById('username').value.trim();
             if (!user) {{ alert('Enter username'); return; }}
             
-            setStatus('Refreshing all...');
-            fetch('/api/refresh?user=' + encodeURIComponent(user)).then(r => r.json()).then(data => {{
+            const groupList = Array.from(enabledGroups).join(',');
+            setStatus('Refreshing selected groups...');
+            fetch('/api/refresh?user=' + encodeURIComponent(user) + '&groups=' + encodeURIComponent(groupList)).then(r => r.json()).then(data => {{
                 setTimeout(() => {{
                     fetch('/api/instances').then(r => r.json()).then(data => {{
                         INSTANCES.length = 0;
@@ -528,7 +533,7 @@ if __name__ == "__main__":
         print("JWS6 Console")
         print("=" * 70)
         print(f"✓ Starting on http://{host}:{port}")
-        print("✓ Status checks via SSH: user@sdm_host curl http://server_ip:http_port")
+        print("✓ Refresh respects group selection")
         print("Press Ctrl+C to stop")
         print("=" * 70)
         
