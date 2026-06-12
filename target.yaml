@@ -1,8 +1,30 @@
 settings:
   http_ok_codes: [200, 302, 401, 403]
-  curl_timeout_seconds: 1
+  curl_timeout_seconds: 8
   ssh_connect_timeout_seconds: 8
+
+  # StrongDM-safe refresh pacing (your request: 1 sec per JVM)
+  ssh_max_parallel: 2
+  refresh_delay_seconds: 1
+
+  # Actions (keep small)
+  action_max_parallel: 2
+
+  # IMPORTANT: prevent STOP from hanging forever
+  action_timeout_seconds: 90
+
+  # Logging
   history_file: "history.jsonl"
+  instance_output_max_entries: 60
+  log_max_entries: 1000
+
+  # Only actions use su -> ihtomcat
+  run_as: "su"
+  action_force_tty: true
+  ihtomcat_home: "/home/ihtomcat"
+  action_timeout_seconds: 90
+
+
   console_host: "127.0.0.1"
   console_port: 5000
 
@@ -10,14 +32,267 @@ servers:
   pdc8rctoihap11:
     sdm_host: "127.0.0.5"
     sdm_port: 22087
-
+    server_ip: "100.72.160.193"
+  pdc8rctoihap12:
+    sdm_host: "127.0.0.5"
+    sdm_port: 22096
+    server_ip: "100.72.160.182"
+  pdc8rctoihap13:
+    sdm_host: "127.0.0.5"
+    sdm_port: 22105
+    server_ip: "100.72.160.179"
 apps:
+  - group: "IH_IC_DSSOA"
+    instances:
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_DSSOA_1_Rdy_pdc8rctoihap11"
+        http_port: 12021
+        path: "/xpressng/DSSOA/NGMonitorServletV2"
+        start_cmd: "./IH_IC_DSSOA_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_DSSOA_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_DSSOA_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_DSSOA_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_DSSOA_1_Rdy_pdc8rctoihap12"
+        http_port: 12021
+        path: "/xpressng/DSSOA/NGMonitorServletV2"
+        start_cmd: "./IH_IC_DSSOA_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_DSSOA_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_DSSOA_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_DSSOA_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_DSSOA_1_Rdy_pdc8rctoihap13"
+        http_port: 12021
+        path: "/xpressng/DSSOA/NGMonitorServletV2"
+        start_cmd: "./IH_IC_DSSOA_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_DSSOA_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_DSSOA_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_DSSOA_Wrapper_Script.sh start 1"
+
+  - group: "IH_IC_HRB"
+    instances:
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_HRB_1_Rdy_pdc8rctoihap11"
+        http_port: 12031
+        path: "/dihhrb/NGMonitorServlet"
+        start_cmd: "./IH_IC_HRB_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_HRB_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_HRB_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_HRB_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_HRB_2_Rdy_pdc8rctoihap11"
+        http_port: 12033
+        path: "/dihhrb/NGMonitorServlet"
+        start_cmd: "./IH_IC_HRB_Wrapper_Script.sh start 2"
+        stop_cmd: "./IH_IC_HRB_Wrapper_Script.sh stop 2"
+        restart_cmd: "./IH_IC_HRB_Wrapper_Script.sh stop 2; sleep 2; ./IH_IC_HRB_Wrapper_Script.sh start 2"
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_HRB_1_Rdy_pdc8rctoihap12"
+        http_port: 12031
+        path: "/dihhrb/NGMonitorServlet"
+        start_cmd: "./IH_IC_HRB_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_HRB_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_HRB_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_HRB_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_HRB_2_Rdy_pdc8rctoihap12"
+        http_port: 12033
+        path: "/dihhrb/NGMonitorServlet"
+        start_cmd: "./IH_IC_HRB_Wrapper_Script.sh start 2"
+        stop_cmd: "./IH_IC_HRB_Wrapper_Script.sh stop 2"
+        restart_cmd: "./IH_IC_HRB_Wrapper_Script.sh stop 2; sleep 2; ./IH_IC_HRB_Wrapper_Script.sh start 2"
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_HRB_1_Rdy_pdc8rctoihap13"
+        http_port: 12031
+        path: "/dihhrb/NGMonitorServlet"
+        start_cmd: "./IH_IC_HRB_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_HRB_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_HRB_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_HRB_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_HRB_2_Rdy_pdc8rctoihap13"
+        http_port: 12033
+        path: "/dihhrb/NGMonitorServlet"
+        start_cmd: "./IH_IC_HRB_Wrapper_Script.sh start 2"
+        stop_cmd: "./IH_IC_HRB_Wrapper_Script.sh stop 2"
+        restart_cmd: "./IH_IC_HRB_Wrapper_Script.sh stop 2; sleep 2; ./IH_IC_HRB_Wrapper_Script.sh start 2"
+
+  - group: "IH_IC_IBSCM"
+    instances:
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_IBSCM_1_Rdy_pdc8rctoihap11"
+        http_port: 12041
+        path: "/cnctibscm/NGMonitorServletV2"
+        start_cmd: "./IH_IC_IBSCM_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_IBSCM_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_IBSCM_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_IBSCM_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_IBSCM_1_Rdy_pdc8rctoihap12"
+        http_port: 12041
+        path: "/cnctibscm/NGMonitorServletV2"
+        start_cmd: "./IH_IC_IBSCM_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_IBSCM_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_IBSCM_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_IBSCM_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_IBSCM_1_Rdy_pdc8rctoihap13"
+        http_port: 12041
+        path: "/cnctibscm/NGMonitorServletV2"
+        start_cmd: "./IH_IC_IBSCM_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_IBSCM_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_IBSCM_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_IBSCM_Wrapper_Script.sh start 1"
+
+  - group: "IH_IC_FHB"
+    instances:
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_FHB_1_Rdy_pdc8rctoihap11"
+        http_port: 12071
+        path: "/ihicfhb/NGMonitorServletV2"
+        start_cmd: "./IH_IC_FHB_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_FHB_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_FHB_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_FHB_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_FHB_2_Rdy_pdc8rctoihap11"
+        http_port: 12073
+        path: "/ihicfhb/NGMonitorServletV2"
+        start_cmd: "./IH_IC_FHB_Wrapper_Script.sh start 2"
+        stop_cmd: "./IH_IC_FHB_Wrapper_Script.sh stop 2"
+        restart_cmd: "./IH_IC_FHB_Wrapper_Script.sh stop 2; sleep 2; ./IH_IC_FHB_Wrapper_Script.sh start 2"
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_FHB_1_Rdy_pdc8rctoihap12"
+        http_port: 12071
+        path: "/ihicfhb/NGMonitorServletV2"
+        start_cmd: "./IH_IC_FHB_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_FHB_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_FHB_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_FHB_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_FHB_2_Rdy_pdc8rctoihap12"
+        http_port: 12073
+        path: "/ihicfhb/NGMonitorServletV2"
+        start_cmd: "./IH_IC_FHB_Wrapper_Script.sh start 2"
+        stop_cmd: "./IH_IC_FHB_Wrapper_Script.sh stop 2"
+        restart_cmd: "./IH_IC_FHB_Wrapper_Script.sh stop 2; sleep 2; ./IH_IC_FHB_Wrapper_Script.sh start 2"
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_FHB_1_Rdy_pdc8rctoihap13"
+        http_port: 12071
+        path: "/ihicfhb/NGMonitorServletV2"
+        start_cmd: "./IH_IC_FHB_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_FHB_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_FHB_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_FHB_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_FHB_2_Rdy_pdc8rctoihap13"
+        http_port: 12073
+        path: "/ihicfhb/NGMonitorServletV2"
+        start_cmd: "./IH_IC_FHB_Wrapper_Script.sh start 2"
+        stop_cmd: "./IH_IC_FHB_Wrapper_Script.sh stop 2"
+        restart_cmd: "./IH_IC_FHB_Wrapper_Script.sh stop 2; sleep 2; ./IH_IC_FHB_Wrapper_Script.sh start 2"
+
   - group: "IH_IC_Shared"
     instances:
       - server: "pdc8rctoihap11"
-        name: "test_jvm_1"
+        name: "IH_IC_Shared_1_Rdy_pdc8rctoihap11"
         http_port: 12001
+        path: "/xpressng/NGMonitorServletV2"
+        start_cmd: "./IH_IC_Shared_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_Shared_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_Shared_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_Shared_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_Shared_2_Rdy_pdc8rctoihap11"
+        http_port: 12003
+        path: "/xpressng/NGMonitorServletV2"
+        start_cmd: "./IH_IC_Shared_Wrapper_Script.sh start 2"
+        stop_cmd: "./IH_IC_Shared_Wrapper_Script.sh stop 2"
+        restart_cmd: "./IH_IC_Shared_Wrapper_Script.sh stop 2; sleep 2; ./IH_IC_Shared_Wrapper_Script.sh start 2"
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_Shared_1_Rdy_pdc8rctoihap12"
+        http_port: 12001
+        path: "/xpressng/NGMonitorServletV2"
+        start_cmd: "./IH_IC_Shared_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_Shared_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_Shared_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_Shared_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_Shared_2_Rdy_pdc8rctoihap12"
+        http_port: 12003
+        path: "/xpressng/NGMonitorServletV2"
+        start_cmd: "./IH_IC_Shared_Wrapper_Script.sh start 2"
+        stop_cmd: "./IH_IC_Shared_Wrapper_Script.sh stop 2"
+        restart_cmd: "./IH_IC_Shared_Wrapper_Script.sh stop 2; sleep 2; ./IH_IC_Shared_Wrapper_Script.sh start 2"
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_Shared_1_Rdy_pdc8rctoihap13"
+        http_port: 12001
+        path: "/xpressng/NGMonitorServletV2"
+        start_cmd: "./IH_IC_Shared_Wrapper_Script.sh start 1"
+        stop_cmd: "./IH_IC_Shared_Wrapper_Script.sh stop 1"
+        restart_cmd: "./IH_IC_Shared_Wrapper_Script.sh stop 1; sleep 2; ./IH_IC_Shared_Wrapper_Script.sh start 1"
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_Shared_2_Rdy_pdc8rctoihap13"
+        http_port: 12003
+        path: "/xpressng/NGMonitorServletV2"
+        start_cmd: "./IH_IC_Shared_Wrapper_Script.sh start 2"
+        stop_cmd: "./IH_IC_Shared_Wrapper_Script.sh stop 2"
+        restart_cmd: "./IH_IC_Shared_Wrapper_Script.sh stop 2; sleep 2; ./IH_IC_Shared_Wrapper_Script.sh start 2"
+
+  - group: "IH_IC_Shared_MQ"
+    instances:
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_Shared_MQ1_Rdy_pdc8rctoihap11"
+        http_port: 12013
         path: "/"
-        start_cmd: "echo 'START'"
-        stop_cmd: "echo 'STOP'"
-        restart_cmd: "echo 'RESTART'"
+        start_cmd: "./TO_BE_COMING.sh start MQ1"
+        stop_cmd: "./TO_BE_COMING.sh stop MQ1"
+        restart_cmd: "./TO_BE_COMING.sh stop MQ1; sleep 2; ./TO_BE_COMING.sh start MQ1"
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_Shared_MQ1_Rdy_pdc8rctoihap12"
+        http_port: 12013
+        path: "/"
+        start_cmd: "./TO_BE_COMING.sh start MQ1"
+        stop_cmd: "./TO_BE_COMING.sh stop MQ1"
+        restart_cmd: "./TO_BE_COMING.sh stop MQ1; sleep 2; ./TO_BE_COMING.sh start MQ1"
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_Shared_MQ1_Rdy_pdc8rctoihap13"
+        http_port: 12013
+        path: "/"
+        start_cmd: "./TO_BE_COMING.sh start MQ1"
+        stop_cmd: "./TO_BE_COMING.sh stop MQ1"
+        restart_cmd: "./TO_BE_COMING.sh stop MQ1; sleep 2; ./TO_BE_COMING.sh start MQ1"
+
+  - group: "IH_IC_Shared_MCP"
+    instances:
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_Shared_MCP1_Rdy_pdc8rctoihap11"
+        http_port: 12051
+        path: "/xpressng/NGMonitorServletV2"
+        start_cmd: "./TO_BE_COMING.sh start MCP1"
+        stop_cmd: "./TO_BE_COMING.sh stop MCP1"
+        restart_cmd: "./TO_BE_COMING.sh stop MCP1; sleep 2; ./TO_BE_COMING.sh start MCP1"
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_Shared_MCP1_Rdy_pdc8rctoihap12"
+        http_port: 12051
+        path: "/xpressng/NGMonitorServletV2"
+        start_cmd: "./TO_BE_COMING.sh start MCP1"
+        stop_cmd: "./TO_BE_COMING.sh stop MCP1"
+        restart_cmd: "./TO_BE_COMING.sh stop MCP1; sleep 2; ./TO_BE_COMING.sh start MCP1"
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_Shared_MCP1_Rdy_pdc8rctoihap13"
+        http_port: 12051
+        path: "/xpressng/NGMonitorServletV2"
+        start_cmd: "./TO_BE_COMING.sh start MCP1"
+        stop_cmd: "./TO_BE_COMING.sh stop MCP1"
+        restart_cmd: "./TO_BE_COMING.sh stop MCP1; sleep 2; ./TO_BE_COMING.sh start MCP1"
+
+  - group: "IH_IC_AdminUI"
+    instances:
+      - server: "pdc8rctoihap11"
+        name: "IH_IC_AdminUI_1_Rdy_pdc8rctoihap11"
+        http_port: 12101
+        path: "/cnct-admin/monitor.html"
+        start_cmd: "./TO_BE_COMING.sh start 1"
+        stop_cmd: "./TO_BE_COMING.sh stop 1"
+        restart_cmd: "./TO_BE_COMING.sh stop 1; sleep 2; ./TO_BE_COMING.sh start 1"
+      - server: "pdc8rctoihap12"
+        name: "IH_IC_AdminUI_1_Rdy_pdc8rctoihap12"
+        http_port: 12101
+        path: "/cnct-admin/monitor.html"
+        start_cmd: "./TO_BE_COMING.sh start 1"
+        stop_cmd: "./TO_BE_COMING.sh stop 1"
+        restart_cmd: "./TO_BE_COMING.sh stop 1; sleep 2; ./TO_BE_COMING.sh start 1"
+      - server: "pdc8rctoihap13"
+        name: "IH_IC_AdminUI_1_Rdy_pdc8rctoihap13"
+        http_port: 12101
+        path: "/cnct-admin/monitor.html"
+        start_cmd: "./TO_BE_COMING.sh start 1"
+        stop_cmd: "./TO_BE_COMING.sh stop 1"
+        restart_cmd: "./TO_BE_COMING.sh stop 1; sleep 2; ./TO_BE_COMING.sh start 1"
