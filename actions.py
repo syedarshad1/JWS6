@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import (
     LOCK, INSTANCES, JOBS,
     IHTOMCAT_HOME, ACTION_TIMEOUT_SECONDS, ACTION_MAX_PARALLEL,
-    INSTANCE_OUTPUT_MAX,
+    ACTION_FORCE_TTY, INSTANCE_OUTPUT_MAX,
     inst_key, push_output, set_last_message, append_history, now_ts,
 )
 from ssh_utils import run_ssh_bash
@@ -93,6 +93,13 @@ def run_action(user, inst, action):
             prelude +
             f"nohup bash -lc {shlex.quote(run_in_home)} >> {shlex.quote(log_file)} 2>&1 &\n"
             f"echo 'Detached. Activity log: {log_file}'\n"
+            # give the JVM a moment to write its first startup lines,
+            # then send the log tail back IN THIS SAME SESSION (we are
+            # already ihtomcat here, so no permission problem)
+            "sleep 3\n"
+            "echo '===JWS_LOG_BEGIN==='\n"
+            f"tail -n {INSTANCE_OUTPUT_MAX} {shlex.quote(log_file)} 2>&1 || true\n"
+            "echo '===JWS_LOG_END==='\n"
         )
     else:  # STOP
         payload_as_ihtomcat = (
@@ -100,6 +107,11 @@ def run_action(user, inst, action):
             f"bash -lc {shlex.quote(run_in_home)} >> {shlex.quote(log_file)} 2>&1\n"
             "rc=$?\n"
             f"echo \"RC=$rc\" >> {shlex.quote(log_file)}\n"
+            # send the log tail back IN THIS SAME SESSION (we are already
+            # ihtomcat here, so no permission problem)
+            "echo '===JWS_LOG_BEGIN==='\n"
+            f"tail -n {INSTANCE_OUTPUT_MAX} {shlex.quote(log_file)} 2>&1 || true\n"
+            "echo '===JWS_LOG_END==='\n"
             "exit $rc\n"
         )
 
@@ -117,7 +129,6 @@ def run_action(user, inst, action):
     print(f"[DEBUG] action={action} user={user} server={inst.get('server')} jvm={inst.get('name')}", flush=True)
     print(f"[DEBUG] run_in_home={run_in_home}", flush=True)
     print(f"[DEBUG] log_file={log_file}", flush=True)
-    print(f"[DEBUG] full_cmd_preview={full_cmd.splitlines()[0]!r} ...", flush=True)
 
     ok, rc, out, err, _ssh_cmd = run_ssh_bash(
         user=user,
@@ -125,49 +136,31 @@ def run_action(user, inst, action):
         sdm_port=inst["sdm_port"],
         remote_cmd=full_cmd,
         timeout=ACTION_TIMEOUT_SECONDS,
-        force_tty=True,
+        force_tty=ACTION_FORCE_TTY,
         use_stdin=True
     )
 
-    # Prefer showing activity log tail if available.
-    # IMPORTANT: the log file is owned by ihtomcat, so the tail must also run
-    # as ihtomcat (same sudo su wrapper as the action), otherwise the normal
-    # SSH user gets "Permission denied" / empty output.
-    tail_inner = f"tail -n {INSTANCE_OUTPUT_MAX} {shlex.quote(log_file)} 2>/dev/null || true"
-    tail_cmd = (
-        "if [ \"$(id -un)\" = \"ihtomcat\" ]; then\n"
-        f"{tail_inner}\n"
-        "else\n"
-        "sudo -n /usr/bin/su - ihtomcat <<'JWS_EOF'\n"
-        f"{tail_inner}\n"
-        "JWS_EOF\n"
-        "fi\n"
-    )
-    _, _rc2, tail_out, tail_err, _ = run_ssh_bash(
-        user=user,
-        sdm_host=inst["sdm_host"],
-        sdm_port=inst["sdm_port"],
-        remote_cmd=tail_cmd,
-        timeout=15,
-        force_tty=True,
-        use_stdin=True
-    )
+    # Show EVERYTHING that came back so the panel is never silently empty.
+    # The raw session output already contains the activity log between the
+    # ===JWS_LOG_BEGIN=== / ===JWS_LOG_END=== markers.
+    print(f"[DEBUG] action raw rc={rc}", flush=True)
+    print(f"[DEBUG] action raw stdout={out!r}", flush=True)
+    print(f"[DEBUG] action raw stderr={err!r}", flush=True)
 
-    # Show BOTH: what the SSH session printed AND the activity log tail,
-    # so the Output panel is never empty.
-    parts_out = []
-    if (out or "").strip():
-        parts_out.append("--- ACTION OUTPUT ---\n" + out.strip())
-    if (tail_out or "").strip():
-        parts_out.append(f"--- ACTIVITY LOG (last {INSTANCE_OUTPUT_MAX} lines: {log_file}) ---\n" + tail_out.strip())
-    display_out = "\n\n".join(parts_out)
-
-    parts_err = []
-    if (err or "").strip():
-        parts_err.append(err.strip())
-    if (tail_err or "").strip():
-        parts_err.append(tail_err.strip())
-    display_err = "\n\n".join(parts_err)
+    raw = (out or "")
+    if "===JWS_LOG_BEGIN===" in raw and "===JWS_LOG_END===" in raw:
+        before, rest = raw.split("===JWS_LOG_BEGIN===", 1)
+        log_part, after = rest.split("===JWS_LOG_END===", 1)
+        display_out = ""
+        if before.strip() or after.strip():
+            display_out += "--- ACTION OUTPUT ---\n" + (before.strip() + "\n" + after.strip()).strip() + "\n\n"
+        display_out += f"--- ACTIVITY LOG (last {INSTANCE_OUTPUT_MAX} lines: {log_file}) ---\n" + log_part.strip()
+    else:
+        # markers missing -> show whatever we got, plus a hint
+        display_out = raw.strip()
+        if not display_out:
+            display_out = "(no output returned by SSH session - check STDERR below)"
+    display_err = (err or "").strip()
 
     # clean noisy lines (also strip \r added by the forced TTY)
     clean_out = "\n".join(ln.rstrip("\r") for ln in (display_out or "").splitlines()
