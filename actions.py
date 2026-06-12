@@ -129,25 +129,50 @@ def run_action(user, inst, action):
         use_stdin=True
     )
 
-    # Prefer showing activity log tail if available
-    tail_cmd = f"tail -n {INSTANCE_OUTPUT_MAX} {shlex.quote(log_file)} || true"
+    # Prefer showing activity log tail if available.
+    # IMPORTANT: the log file is owned by ihtomcat, so the tail must also run
+    # as ihtomcat (same sudo su wrapper as the action), otherwise the normal
+    # SSH user gets "Permission denied" / empty output.
+    tail_inner = f"tail -n {INSTANCE_OUTPUT_MAX} {shlex.quote(log_file)} 2>/dev/null || true"
+    tail_cmd = (
+        "if [ \"$(id -un)\" = \"ihtomcat\" ]; then\n"
+        f"{tail_inner}\n"
+        "else\n"
+        "sudo -n /usr/bin/su - ihtomcat <<'JWS_EOF'\n"
+        f"{tail_inner}\n"
+        "JWS_EOF\n"
+        "fi\n"
+    )
     _, _rc2, tail_out, tail_err, _ = run_ssh_bash(
         user=user,
         sdm_host=inst["sdm_host"],
         sdm_port=inst["sdm_port"],
         remote_cmd=tail_cmd,
         timeout=15,
-        force_tty=False,
-        use_stdin=False
+        force_tty=True,
+        use_stdin=True
     )
 
-    display_out = tail_out if tail_out else (out or "")
-    display_err = tail_err if tail_err else (err or "")
+    # Show BOTH: what the SSH session printed AND the activity log tail,
+    # so the Output panel is never empty.
+    parts_out = []
+    if (out or "").strip():
+        parts_out.append("--- ACTION OUTPUT ---\n" + out.strip())
+    if (tail_out or "").strip():
+        parts_out.append(f"--- ACTIVITY LOG (last {INSTANCE_OUTPUT_MAX} lines: {log_file}) ---\n" + tail_out.strip())
+    display_out = "\n\n".join(parts_out)
 
-    # clean noisy lines
-    clean_out = "\n".join(ln for ln in (display_out or "").splitlines()
+    parts_err = []
+    if (err or "").strip():
+        parts_err.append(err.strip())
+    if (tail_err or "").strip():
+        parts_err.append(tail_err.strip())
+    display_err = "\n\n".join(parts_err)
+
+    # clean noisy lines (also strip \r added by the forced TTY)
+    clean_out = "\n".join(ln.rstrip("\r") for ln in (display_out or "").splitlines()
                           if not ln.startswith("Last login:")).strip()
-    clean_err = "\n".join(ln for ln in (display_err or "").splitlines()
+    clean_err = "\n".join(ln.rstrip("\r") for ln in (display_err or "").splitlines()
                           if "Connection to" not in ln or "closed." not in ln).strip()
 
     push_output(key, f"{action}_DONE", f"{action} wrapper for {inst['name']}", rc, clean_out, clean_err)
